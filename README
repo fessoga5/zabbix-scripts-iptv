@@ -1,0 +1,65 @@
+## INTRODUCING
+
+Средство для мониторинга iptv каналов через заббикс, каналы запускаются через vlc командой:
+
+	'vlc --miface eth3 -I dummy udp://@238.0.5.21:1234 --intf rc --rc-host 127.0.0.1:5210  -A dummy -V dummy'
+
+Контроль за процессом осуществляется через supervisord, для этого в нем создаем конфиг файл для канала:
+
+ВАЖНО: Обратите внимание на название процесса, оно должно соответствовать следующему шаблону - [program:{ip_adress_stream;rc_port;Название канала}]
+
+	[program:238.0.5.21]
+	command=vlc --miface eth3 -I dummy udp://@238.0.5.21:1234 --intf rc --rc-host 127.0.0.1:5210  -A dummy -V dummy
+	autostart=true
+	autorestart=true
+	startretries=100000000
+	stdout_logfile=syslog
+	stderr_logfile=syslog
+	user=a_karamyshev
+
+## Как происходит мониторинг
+
+1. Сначала скрипт discovery.py ищет необходимые каналы. Он опрашивает supervisord через API и вывод названия каналов, в формате указанном выще. Происходит парсинг строки
+
+и выбираются IP_STREAM RC_PORT NAME. Заббиксу возвращаются эти данные в виде JSON массива, а он создает элементы данных на основе этих данных.
+
+	ПРИМЕР МАССИВА
+
+2. После  это заббикс обращается к конкретному каналу и выполняется команда:
+	echo "stats" | nc 127.0.0.1 RC_PORT 
+
+Данная комманда выводит листинг аттрибутов:
+  	root@analyzerIPTV:/etc/ansible# echo "stats" | nc 127.0.0.1 5210
+	VLC media player 2.2.1 Terry Pratchett (Weatherwax)
+	Command Line Interface initialized. Type `help' for help.
+	> +----[ begin of statistical info
+	+-[Incoming]
+	| input bytes read :    99742 KiB
+	| input bitrate    :     8172 kb/s
+	| demux bytes read :    96647 KiB
+	| demux bitrate    :     7499 kb/s
+	| demux corrupted  :        0
+	| discontinuities  :        0
+	|
+	+-[Video Decoding]
+	| video decoded    :     2037
+	| frames displayed :     2041
+	| frames lost      :        0
+	|
+	+-[Audio Decoding]
+	| audio decoded    :     3467
+	| buffers played   :     3467
+	| buffers lost     :        0
+	|
+	+-[Streaming]
+	| packets sent     :        0
+	| bytes sent       :        0 KiB
+	| sending bitrate  :        0 kb/s
+
+После этого мы парсим необходимые аттрибуты и добавляем их в заббикс.
+
+Аттрибуты:
+	input bytes read
+	input bitrate
+	frames lost
+	buffers lost
