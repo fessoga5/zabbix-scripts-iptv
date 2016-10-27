@@ -36,16 +36,39 @@ def createZabbixJson(data):
     except:
       return 0
 
+
+def netcat(hostname, port, content):
+  import socket
+  s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  s.connect((hostname, port))
+  s.sendall(content)
+  s.shutdown(socket.SHUT_WR)
+  while 1:
+    data = s.recv(1024)
+    #if data.startswith("input bytes read"):
+    if data == "":
+      break
+    if repr(data).startswith("'+----[ begin of statistical info"):
+      return repr(data)
+  s.close()
+
+def parseNetcat(attribute, Retnetcat):
+#'+----[ begin of statistical info\r\n+-[Incoming]\r\n| input bytes read :     2712 KiB\r\n| input bitrate    :    10860 kb/s\r\n| demux bytes read :     2442 KiB\r\n| demux bitrate    :     9580 kb/s\r\n| demux corrupted  :        0\r\n| discontinuities  :        0\r\n|\r\n+-[Video Decoding]\r\n| video decoded    :       19\r\n| frames displayed :       15\r\n| frames lost      :        0\r\n|\r\n+-[Audio Decoding]\r\n| audio decoded    :       77\r\n| buffers played   :       77\r\n| buffers lost     :        0\r\n|\r\n+-[Streaming]\r\n| packets sent     :        0\r\n| bytes sent       :        0 KiB\r\n| sending bitrate  :        0 kb/s\r\n+----[ end of statistical info ]\r\n> Bye-bye!\r\n'
+  import re
+  channelDict = dict()
+  try:
+    m = re.match('^.*{}\s+:\s+([0-9]+).*$'.format(attribute.strip()), Retnetcat)
+    return m.group(1)
+  except:
+    return 0
+
 if __name__ == "__main__":
-  formedList = createDict(getProcessInfo())
-  print createZabbixJson(formedList)
-  #try:
-  #  if sys.argv[1] == 'discovery':
-  #    print createDict(getProcessInfo())
-  #    #print createZabbixJson(getDictTemp())
-  #  else:
-  #    #print getTemp(sys.argv[1])
-  #    pass
-  #except Exception as e:
-  #  print e
-  #  print 0
+  #print netcat('127.0.0.1', 5210, 'stats\n')
+  try:
+    if sys.argv[1] == 'discovery':
+      print createZabbixJson(createDict(getProcessInfo()))
+    else:
+      #print getTemp(sys.argv[1])
+      print parseNetcat(sys.argv[1], netcat('127.0.0.1', int(sys.argv[2]), 'stats\n'))
+  except Exception as e:
+    print 0
