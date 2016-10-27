@@ -3,24 +3,26 @@
 import json
 import sys
 
-def getDictTemp():
+def getProcessInfo():
+  import supervisor.xmlrpc
   import xmlrpclib
-  server = xmlrpclib.Server('http://localhost:9001/RPC2')
-  return server.getProcessInfo()
 
-def getTemp(name):
-  result = dict()
-  sensors.init()
-  try:
-    for chip in sensors.iter_detected_chips():
-        for feature in chip:
-          try:
-              if feature.label == name:
-                return feature.get_value()
-          except:
-            pass
-  finally:
-      sensors.cleanup()
+  p = xmlrpclib.ServerProxy('http://127.0.0.1',
+          transport=supervisor.xmlrpc.SupervisorTransport(
+              None, None,
+              'unix:///var/run/supervisor.sock'))
+
+  return p.supervisor.getAllProcessInfo()
+
+def createDict(RetProcessInfo):
+  #[{'now': 1477550009, 'group': '238.0.5.21;5210;PerviiHD', 'description': 'pid 26674, uptime 0:00:05', 'pid': 26674, 'stderr_logfile': 'syslog', 'stop': 0, 'statename': 'RUNNING', 'start': 1477550004, 'state': 20, 'stdout_logfile': 'syslog', 'logfile': 'syslog', 'exitstatus': 0, 'spawnerr': '', 'name': '238.0.5.21;5210;PerviiHD'}, {'now': 1477550009, 'group': '238.0.5.22;5220;RossiaHD', 'description': 'pid 26675, uptime 0:00:05', 'pid': 26675, 'stderr_logfile': 'syslog', 'stop': 0, 'statename': 'RUNNING', 'start': 1477550004, 'state': 20, 'stdout_logfile': 'syslog', 'logfile': 'syslog', 'exitstatus': 0, 'spawnerr': '', 'name': '238.0.5.22;5220;RossiaHD'}]
+  convert = dict()
+
+  for value in RetProcessInfo:
+    ip_stream, rc_port, name  = value['group'].split(";")
+    convert[name]= dict({'ip_stream': ip_stream, 'rc_port': rc_port, 'name': name})
+
+  return convert
 
 def createZabbixJson(data):
     """
@@ -28,19 +30,22 @@ def createZabbixJson(data):
     """
     try:
       result = {"data":[]}
-      for dom, value in data.iteritems():
-        result['data'].append({"{#NAME}":dom})
+      for name, value in data.iteritems():
+        result['data'].append({"{#NAME}":name, "{#IP_STREAM}": value['ip_stream'], "{#RC_PORT}": value['rc_port'] })
       return json.dumps(result) 
     except:
       return 0
 
 if __name__ == "__main__":
-  try:
-    if sys.argv[1] == 'discovery':
-      print getDictTemp()
-      #print createZabbixJson(getDictTemp())
-    else:
-      #print getTemp(sys.argv[1])
-      pass
-  except:
-    print 0
+  formedList = createDict(getProcessInfo())
+  print createZabbixJson(formedList)
+  #try:
+  #  if sys.argv[1] == 'discovery':
+  #    print createDict(getProcessInfo())
+  #    #print createZabbixJson(getDictTemp())
+  #  else:
+  #    #print getTemp(sys.argv[1])
+  #    pass
+  #except Exception as e:
+  #  print e
+  #  print 0
